@@ -23,7 +23,7 @@ const PostPage = ({ post }) => {
   const [showComments, setShowComments] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [topViewedPosts, setTopViewedPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
 
   const router = useRouter();
   const { post_slug } = router.query;
@@ -33,10 +33,8 @@ const PostPage = ({ post }) => {
       try {
         const postData = await fetchPostBySlug(post_slug);
         setPost(postData);
-        setLoading(false);
       } catch (error) {
         console.error("Error fetching post:", error);
-        setLoading(false);
       }
     };
 
@@ -242,7 +240,7 @@ const PostPage = ({ post }) => {
       .catch((err) => console.error("Could not copy link: ", err));
   };
 
-  if (loading) {
+  if (!post) {
     return (
       <div className="news-detail-skeleton-wrapper">
         <div className="news-detail-skeleton-image"></div>
