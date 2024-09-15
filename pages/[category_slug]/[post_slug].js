@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { fetchPostBySlug } from '../../app/services/api';
+import { fetchPostBySlug } from '../../app/services/api'; // Ensure this function fetches like details
 import Link from 'next/link';
 import axios from 'axios';
 import { FaEye, FaCalendarAlt, FaClock, FaShare, FaHeart, FaBookmark, FaClipboard } from 'react-icons/fa';
 import { AiOutlineComment } from 'react-icons/ai';
 import { SiFacebook, SiTwitter, SiWhatsapp } from 'react-icons/si';
-import { FaBookmark as BookmarkIcon, FaBookmark as BookmarkedIcon } from 'react-icons/fa';
 import Head from 'next/head';
 import '../../app/styles/posts.css';
 import CommentsModal from './CommentsModal';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
 
 const PostPage = ({ post }) => {
   const [likeCount, setLikeCount] = useState(0);
@@ -23,7 +21,6 @@ const PostPage = ({ post }) => {
   const [showComments, setShowComments] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [topViewedPosts, setTopViewedPosts] = useState([]);
-  
 
   const router = useRouter();
   const { post_slug } = router.query;
@@ -33,6 +30,8 @@ const PostPage = ({ post }) => {
       try {
         const postData = await fetchPostBySlug(post_slug);
         setPost(postData);
+        setLikeCount(postData.likeCount || 0);
+        setIsLikedByUser(postData.isLikedByUser || false);
       } catch (error) {
         console.error("Error fetching post:", error);
       }
@@ -42,30 +41,6 @@ const PostPage = ({ post }) => {
       fetchPost();
     }
   }, [post_slug]);
-
-  useEffect(() => {
-    const fetchLikes = async () => {
-      try {
-        const response = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`);
-        setLikeCount(response.data.like_count);
-
-        const loggedInUser = localStorage.getItem('user');
-        if (loggedInUser) {
-          const foundUser = JSON.parse(loggedInUser);
-          const userId = foundUser.id;
-
-          const likeStatusResponse = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`);
-          setIsLikedByUser(likeStatusResponse.data.user_liked);
-        }
-      } catch (error) {
-        console.error("Error fetching like data:", error);
-      }
-    };
-
-    if (post) {
-      fetchLikes();
-    }
-  }, [post, post_slug]);
 
   const toggleLike = async () => {
     try {
@@ -275,25 +250,24 @@ const PostPage = ({ post }) => {
     setShowComments(prevState => !prevState);
   };
 
-  // Helper function to truncate titles that are too long
   const truncateTitle = (title, maxLength = 50) => {
     if (title.length > maxLength) {
-      return `${title.substring(0, maxLength)}...`; // Truncate and append ellipsis
+      return `${title.substring(0, maxLength)}...`;
     }
-    return title; // Return the original title if it's short enough
+    return title;
   };
 
   const getCurrentDomain = () => {
     if (typeof window !== 'undefined') {
       return window.location.origin;
     }
-    return 'https://yourwebsite.com'; // Fallback for server-side rendering
+    return 'https://yourwebsite.com';
   };
 
   const currentDomain = getCurrentDomain();
   const postUrl = post ? `${currentDomain}/posts/${post.slug}` : '';
 
-  const defaultImage = `${currentDomain}/default-image.jpg`; // Replace with your default image URL
+  const defaultImage = `${currentDomain}/default-image.jpg`;
   const imageUrl = post && post.image ? post.image : defaultImage;
 
   return (
@@ -372,7 +346,7 @@ const PostPage = ({ post }) => {
       </div>
 
       <div className="actions">
-        <div className="action-item" onClick={toggleLike}>
+        <div className="action-item" onClick={toggleLike} id="like-btn">
           <FaHeart style={{ color: isLikedByUser ? 'red' : 'inherit' }} />
         </div>
         <span id="like-count">{likeCount}</span>
@@ -381,13 +355,12 @@ const PostPage = ({ post }) => {
         </div>
         <span id="comment-count">{commentCount}</span>
         <div className="action-item" onClick={handleBookmarkClick}>
-  {isBookmarked ? (
-    <BookmarkedIcon style={{ color: 'gold' }} />
-  ) : (
-    <BookmarkIcon />
-  )}
-</div>
-
+          {isBookmarked ? (
+            <FaBookmark style={{ color: 'gold' }} />
+          ) : (
+            <FaBookmark />
+          )}
+        </div>
         <div className="action-item" onClick={toggleShareOptions}>
           <FaShare />
         </div>
