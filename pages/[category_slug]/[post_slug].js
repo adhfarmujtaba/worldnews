@@ -6,13 +6,11 @@ import axios from 'axios';
 import { FaEye, FaCalendarAlt, FaClock, FaShare, FaHeart, FaBookmark, FaClipboard } from 'react-icons/fa';
 import { AiOutlineComment } from 'react-icons/ai';
 import { SiFacebook, SiTwitter, SiWhatsapp } from 'react-icons/si';
-import { FaBookmark as BookmarkIcon, FaBookmark as BookmarkedIcon } from 'react-icons/fa';
 import Head from 'next/head';
 import '../../app/styles/posts.css';
 import CommentsModal from './CommentsModal';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
 
 const PostPage = ({ post }) => {
   const [likeCount, setLikeCount] = useState(0);
@@ -23,7 +21,8 @@ const PostPage = ({ post }) => {
   const [showComments, setShowComments] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [topViewedPosts, setTopViewedPosts] = useState([]);
-  
+  const [loading, setLoading] = useState(true);
+  const [minimumLoadTime, setMinimumLoadTime] = useState(0);
 
   const router = useRouter();
   const { post_slug } = router.query;
@@ -33,6 +32,7 @@ const PostPage = ({ post }) => {
       try {
         const postData = await fetchPostBySlug(post_slug);
         setPost(postData);
+        setMinimumLoadTime(1000); // Set minimum load time to 1 second
       } catch (error) {
         console.error("Error fetching post:", error);
       }
@@ -44,28 +44,35 @@ const PostPage = ({ post }) => {
   }, [post_slug]);
 
   useEffect(() => {
-    const fetchLikes = async () => {
-      try {
-        const response = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`);
-        setLikeCount(response.data.like_count);
-
-        const loggedInUser = localStorage.getItem('user');
-        if (loggedInUser) {
-          const foundUser = JSON.parse(loggedInUser);
-          const userId = foundUser.id;
-
-          const likeStatusResponse = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`);
-          setIsLikedByUser(likeStatusResponse.data.user_liked);
-        }
-      } catch (error) {
-        console.error("Error fetching like data:", error);
-      }
-    };
-
     if (post) {
+      const timer = setTimeout(() => setLoading(false), minimumLoadTime);
+      return () => clearTimeout(timer);
+    }
+  }, [post, minimumLoadTime]);
+
+  useEffect(() => {
+    if (!loading) {
+      const fetchLikes = async () => {
+        try {
+          const response = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`);
+          setLikeCount(response.data.like_count);
+
+          const loggedInUser = localStorage.getItem('user');
+          if (loggedInUser) {
+            const foundUser = JSON.parse(loggedInUser);
+            const userId = foundUser.id;
+
+            const likeStatusResponse = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`);
+            setIsLikedByUser(likeStatusResponse.data.user_liked);
+          }
+        } catch (error) {
+          console.error("Error fetching like data:", error);
+        }
+      };
+
       fetchLikes();
     }
-  }, [post, post_slug]);
+  }, [post, loading]);
 
   const toggleLike = async () => {
     try {
@@ -120,7 +127,7 @@ const PostPage = ({ post }) => {
     };
 
     checkBookmarkStatus();
-  }, [post]);
+  }, [post, loading]);
 
   const handleBookmarkClick = async () => {
     const loggedInUser = localStorage.getItem('user');
@@ -161,7 +168,7 @@ const PostPage = ({ post }) => {
     };
 
     fetchRelatedPosts();
-  }, [post]);
+  }, [post, loading]);
 
   useEffect(() => {
     const updateViews = async () => {
@@ -175,7 +182,7 @@ const PostPage = ({ post }) => {
     if (post) {
       updateViews();
     }
-  }, [post]);
+  }, [post, loading]);
 
   useEffect(() => {
     const fetchCommentCount = async () => {
@@ -190,7 +197,7 @@ const PostPage = ({ post }) => {
     };
 
     fetchCommentCount();
-  }, [post]);
+  }, [post, loading]);
 
   useEffect(() => {
     const fetchTopViewedPosts = async () => {
@@ -205,7 +212,7 @@ const PostPage = ({ post }) => {
     };
 
     fetchTopViewedPosts();
-  }, [post]);
+  }, [post, loading]);
 
   const toggleShareOptions = () => {
     setShowShareOptions(!showShareOptions);
@@ -240,7 +247,7 @@ const PostPage = ({ post }) => {
       .catch((err) => console.error("Could not copy link: ", err));
   };
 
-  if (!post) {
+  if (loading) {
     return (
       <div className="news-detail-skeleton-wrapper">
         <div className="news-detail-skeleton-image"></div>
@@ -249,6 +256,10 @@ const PostPage = ({ post }) => {
         <div className="news-detail-skeleton-content"></div>
       </div>
     );
+  }
+
+  if (!post) {
+    return <div>Post not found.</div>;
   }
 
   const formattedDate = new Date(post.created_at).toLocaleDateString('en-US', {
@@ -275,12 +286,11 @@ const PostPage = ({ post }) => {
     setShowComments(prevState => !prevState);
   };
 
-  // Helper function to truncate titles that are too long
   const truncateTitle = (title, maxLength = 50) => {
     if (title.length > maxLength) {
-      return `${title.substring(0, maxLength)}...`; // Truncate and append ellipsis
+      return `${title.substring(0, maxLength)}...`;
     }
-    return title; // Return the original title if it's short enough
+    return title;
   };
 
   const getCurrentDomain = () => {
@@ -293,7 +303,7 @@ const PostPage = ({ post }) => {
   const currentDomain = getCurrentDomain();
   const postUrl = post ? `${currentDomain}/posts/${post.slug}` : '';
 
-  const defaultImage = `${currentDomain}/default-image.jpg`; // Replace with your default image URL
+  const defaultImage = `${currentDomain}/default-image.jpg`;
   const imageUrl = post && post.image ? post.image : defaultImage;
 
   return (
@@ -329,7 +339,6 @@ const PostPage = ({ post }) => {
           </div>
         </div>
 
-        {/* Related posts */}
         {relatedPosts.length > 0 && (
           <div className="related-posts">
             <h2>Also Read</h2>
@@ -381,13 +390,12 @@ const PostPage = ({ post }) => {
         </div>
         <span id="comment-count">{commentCount}</span>
         <div className="action-item" onClick={handleBookmarkClick}>
-  {isBookmarked ? (
-    <BookmarkedIcon style={{ color: 'gold' }} />
-  ) : (
-    <BookmarkIcon />
-  )}
-</div>
-
+          {isBookmarked ? (
+            <FaBookmark style={{ color: 'gold' }} />
+          ) : (
+            <FaBookmark />
+          )}
+        </div>
         <div className="action-item" onClick={toggleShareOptions}>
           <FaShare />
         </div>
@@ -444,22 +452,14 @@ export async function getServerSideProps({ params }) {
   const { post_slug } = params;
 
   try {
-    // Fetch the post based on the slug from params
     const post = await fetchPostBySlug(post_slug);
-
-    // Return the post data as props
     return {
-      props: { 
-        post: post || null // Ensure post is set to null if not found
-      }
+      props: { post: post || null }
     };
   } catch (error) {
     console.error('Error fetching post:', error);
-
     return {
-      props: { 
-        post: null // Return null if there's an error
-      }
+      props: { post: null }
     };
   }
 }
