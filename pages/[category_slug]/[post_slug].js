@@ -13,8 +13,8 @@ import CommentsModal from './CommentsModal';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const PostPage = ({ post }) => {
-  const [loading, setLoading] = useState(!post); // Show skeleton loader if post data is not passed from SSR
+const PostPage = ({ post: initialPost }) => {
+  const [post, setPost] = useState(initialPost);
   const [likeCount, setLikeCount] = useState(0);
   const [isLikedByUser, setIsLikedByUser] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
@@ -23,35 +23,34 @@ const PostPage = ({ post }) => {
   const [showComments, setShowComments] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [topViewedPosts, setTopViewedPosts] = useState([]);
+  const [isSSR, setIsSSR] = useState(true); // SSR flag to control skeleton loading visibility
 
   const router = useRouter();
   const { post_slug } = router.query;
 
   useEffect(() => {
-    const fetchPost = async () => {
-      try {
-        if (!post_slug) return;
-
-        const postData = await fetchPostBySlug(post_slug);
-        if (postData) {
+    if (!initialPost && post_slug) {
+      const fetchPost = async () => {
+        try {
+          const postData = await fetchPostBySlug(post_slug);
           setPost(postData);
-          setLoading(false); // Set loading to false when post data is fetched
+        } catch (error) {
+          console.error('Error fetching post:', error);
         }
-      } catch (error) {
-        console.error("Error fetching post:", error);
-        setLoading(false); // Ensure loading is set to false even on error
-      }
-    };
+      };
 
-    if (post_slug) {
       fetchPost();
     }
-  }, [post_slug]);
+
+    setIsSSR(false); // Mark that SSR is complete
+  }, [initialPost, post_slug]);
 
   useEffect(() => {
     const fetchLikes = async () => {
       try {
-        const response = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`);
+        const response = await axios.get(
+          `https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`
+        );
         setLikeCount(response.data.like_count);
 
         const loggedInUser = localStorage.getItem('user');
@@ -59,41 +58,46 @@ const PostPage = ({ post }) => {
           const foundUser = JSON.parse(loggedInUser);
           const userId = foundUser.id;
 
-          const likeStatusResponse = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`);
+          const likeStatusResponse = await axios.get(
+            `https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`
+          );
           setIsLikedByUser(likeStatusResponse.data.user_liked);
         }
       } catch (error) {
-        console.error("Error fetching like data:", error);
+        console.error('Error fetching like data:', error);
       }
     };
 
     if (post) {
       fetchLikes();
     }
-  }, [post]);
+  }, [post, post_slug]);
 
   const toggleLike = async () => {
     try {
       const loggedInUser = localStorage.getItem('user');
       if (!loggedInUser) {
-        toast.error("Please log in to like the post");
+        toast.error('Please log in to like the post');
         return;
       }
 
       const foundUser = JSON.parse(loggedInUser);
       const userId = foundUser.id;
 
-      await axios.post(`https://blog.tourismofkashmir.com/api_likes?toggle-like`, { post_id: post.id, user_id: userId });
+      await axios.post(`https://blog.tourismofkashmir.com/api_likes?toggle-like`, {
+        post_id: post.id,
+        user_id: userId,
+      });
 
       setIsLikedByUser(!isLikedByUser);
-      setLikeCount(prevCount => isLikedByUser ? prevCount - 1 : prevCount + 1);
+      setLikeCount((prevCount) => (isLikedByUser ? prevCount - 1 : prevCount + 1));
       document.getElementById('like-btn').classList.add('heartBeatAnimation');
 
       setTimeout(() => {
         document.getElementById('like-btn').classList.remove('heartBeatAnimation');
       }, 500);
     } catch (error) {
-      console.error("Error toggling like:", error);
+      console.error('Error toggling like:', error);
     }
   };
 
@@ -103,7 +107,7 @@ const PostPage = ({ post }) => {
         try {
           const loggedInUser = localStorage.getItem('user');
           if (!loggedInUser) {
-            console.warn("User not logged in");
+            console.warn('User not logged in');
             setIsBookmarked(false);
             return;
           }
@@ -111,14 +115,12 @@ const PostPage = ({ post }) => {
           const foundUser = JSON.parse(loggedInUser);
           const userId = foundUser.id;
 
-          const response = await axios.get(`https://blog.tourismofkashmir.com/api_bookmark.php?action=check&user_id=${userId}&post_id=${post.id}`);
-          if (response.data && typeof response.data === 'string') {
-            setIsBookmarked(response.data.includes("Post is bookmarked"));
-          } else {
-            setIsBookmarked(false);
-          }
+          const response = await axios.get(
+            `https://blog.tourismofkashmir.com/api_bookmark.php?action=check&user_id=${userId}&post_id=${post.id}`
+          );
+          setIsBookmarked(response.data.includes('Post is bookmarked'));
         } catch (error) {
-          console.error("Error checking bookmark status:", error);
+          console.error('Error checking bookmark status:', error);
           setIsBookmarked(false);
         }
       }
@@ -130,23 +132,20 @@ const PostPage = ({ post }) => {
   const handleBookmarkClick = async () => {
     const loggedInUser = localStorage.getItem('user');
     if (!loggedInUser) {
-      toast.error("Please log in to manage bookmarks");
+      toast.error('Please log in to manage bookmarks');
       return;
     }
 
     const foundUser = JSON.parse(loggedInUser);
     const userId = foundUser.id;
-
     const action = isBookmarked ? 'delete' : 'add';
 
     try {
-      await axios.get(`https://blog.tourismofkashmir.com/api_bookmark.php?action=${action}&user_id=${userId}&post_id=${post.id}`);
+      await axios.get(
+        `https://blog.tourismofkashmir.com/api_bookmark.php?action=${action}&user_id=${userId}&post_id=${post.id}`
+      );
       setIsBookmarked(!isBookmarked);
-      if (action === 'add') {
-        toast.success("Bookmark added successfully");
-      } else {
-        toast.success("Bookmark removed successfully");
-      }
+      toast.success(`Bookmark ${action === 'add' ? 'added' : 'removed'} successfully`);
     } catch (error) {
       console.error(`Error ${action}ing bookmark:`, error);
       toast.error(`Error ${action}ing bookmark: ${error.message}`);
@@ -157,11 +156,13 @@ const PostPage = ({ post }) => {
     const fetchRelatedPosts = async () => {
       try {
         if (post && post.category_name) {
-          const response = await axios.get(`https://blog.tourismofkashmir.com/related_api.php?related_posts=${post.category_name}&exclude_post_id=${post.id}`);
+          const response = await axios.get(
+            `https://blog.tourismofkashmir.com/related_api.php?related_posts=${post.category_name}&exclude_post_id=${post.id}`
+          );
           setRelatedPosts(response.data);
         }
       } catch (error) {
-        console.error("Error fetching related posts:", error);
+        console.error('Error fetching related posts:', error);
       }
     };
 
@@ -171,9 +172,11 @@ const PostPage = ({ post }) => {
   useEffect(() => {
     const updateViews = async () => {
       try {
-        await axios.get(`https://blog.tourismofkashmir.com/apis.php?update_views=true&post_id=${post.id}`);
+        await axios.get(
+          `https://blog.tourismofkashmir.com/apis.php?update_views=true&post_id=${post.id}`
+        );
       } catch (error) {
-        console.error("Error updating post views:", error);
+        console.error('Error updating post views:', error);
       }
     };
 
@@ -186,11 +189,13 @@ const PostPage = ({ post }) => {
     const fetchCommentCount = async () => {
       try {
         if (post) {
-          const response = await axios.get(`https://blog.tourismofkashmir.com/api_comment_count.php?post_id=${post.id}`);
+          const response = await axios.get(
+            `https://blog.tourismofkashmir.com/api_comment_count.php?post_id=${post.id}`
+          );
           setCommentCount(response.data.comment_count);
         }
       } catch (error) {
-        console.error("Error fetching comment count:", error);
+        console.error('Error fetching comment count:', error);
       }
     };
 
@@ -201,11 +206,13 @@ const PostPage = ({ post }) => {
     const fetchTopViewedPosts = async () => {
       try {
         if (post) {
-          const response = await axios.get(`https://blog.tourismofkashmir.com/related_api.php?topviewpost=true&exclude_post_id=${post.id}`);
+          const response = await axios.get(
+            `https://blog.tourismofkashmir.com/related_api.php?topviewpost=true&exclude_post_id=${post.id}`
+          );
           setTopViewedPosts(response.data);
         }
       } catch (error) {
-        console.error("Error fetching top viewed posts:", error);
+        console.error('Error fetching top viewed posts:', error);
       }
     };
 
@@ -241,11 +248,11 @@ const PostPage = ({ post }) => {
 
   const copyLinkToClipboard = () => {
     navigator.clipboard.writeText(window.location.href)
-      .then(() => toast.success("Link copied to clipboard!"))
-      .catch((err) => console.error("Could not copy link: ", err));
+      .then(() => toast.success('Link copied to clipboard!'))
+      .catch((err) => console.error('Could not copy link: ', err));
   };
 
-  if (loading) {
+  if (isSSR || !post) {
     return (
       <div className="news-detail-skeleton-wrapper">
         <div className="news-detail-skeleton-image"></div>
@@ -256,88 +263,217 @@ const PostPage = ({ post }) => {
     );
   }
 
-  if (!post) {
-    return <p>Post not found.</p>;
-  }
+  const formattedDate = new Date(post.created_at).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  const formatViews = (views) => {
+    if (views >= 10000000) {
+      return Math.floor(views / 10000000) + 'cr';
+    } else if (views >= 1000000) {
+      return Math.floor(views / 1000000) + 'M';
+    } else if (views >= 100000) {
+      return Math.floor(views / 100000) + 'L';
+    } else if (views >= 1000) {
+      return Math.floor(views / 1000) + 'k';
+    } else {
+      return views.toString();
+    }
+  };
+
+  const toggleCommentsModal = () => {
+    setShowComments(prevState => !prevState);
+  };
+
+  // Helper function to truncate titles that are too long
+  const truncateTitle = (title, maxLength = 50) => {
+    if (title.length > maxLength) {
+      return `${title.substring(0, maxLength)}...`; // Truncate and append ellipsis
+    }
+    return title; // Return the original title if it's short enough
+  };
+
+  const getCurrentDomain = () => {
+    if (typeof window !== 'undefined') {
+      return window.location.origin;
+    }
+    return 'https://yourwebsite.com'; // Fallback for server-side rendering
+  };
+
+  const currentDomain = getCurrentDomain();
+  const postUrl = post ? `${currentDomain}/posts/${post.slug}` : '';
+
+  const defaultImage = `${currentDomain}/default-image.jpg`; // Replace with your default image URL
+  const imageUrl = post && post.image ? post.image : defaultImage;
 
   return (
     <>
       <Head>
         <title>{post.title}</title>
-        <meta name="description" content={post.excerpt} />
-        {/* Add other meta tags as needed */}
+        <meta name="description" content={post ? post.meta_description : 'Post not found'} />
+        <meta property="og:title" content={post ? post.title : 'Post Not Found'} />
+        <meta property="og:description" content={post ? post.meta_description : 'Post not found'} />
+        <meta property="og:image" content={imageUrl} />
+        <meta property="og:url" content={postUrl} />
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="Your Website Name" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={post ? post.title : 'Post Not Found'} />
+        <meta name="twitter:description" content={post ? post.meta_description : 'Post not found'} />
+        <meta name="twitter:image" content={imageUrl} />
+        <meta name="twitter:url" content={postUrl} />
+        <link rel="icon" href={imageUrl} type="image/x-icon" />
       </Head>
-      <div className="post-page">
-        <h1>{post.title}</h1>
-        <div className="post-meta">
-          <span><FaCalendarAlt /> {new Date(post.date).toLocaleDateString()}</span>
-          <span><FaClock /> {post.reading_time} min read</span>
-          <span><FaEye /> {post.views} views</span>
-          <span><AiOutlineComment /> {commentCount} comments</span>
+
+      <div className="container_post">
+        <div className="card_post">
+          <img src={post.image} className="card-img-top news-image" alt={post.title} />
+          <div className="card-body">
+            <h5 className="card-title">{post.title}</h5>
+            <p className="card-text post-meta">
+              <FaEye /> {formatViews(post.views)} views •
+              <FaCalendarAlt /> {formattedDate} •
+              <FaClock /> {post.read_time} min read
+            </p>
+            <div className="content_post" dangerouslySetInnerHTML={{ __html: post.content }} />
+          </div>
         </div>
-        <div className="post-content" dangerouslySetInnerHTML={{ __html: post.content }} />
-        <div className="post-actions">
-          <button id="like-btn" onClick={toggleLike}>
-            {isLikedByUser ? <FaHeart color="red" /> : <FaHeart />}
-            {likeCount}
-          </button>
-          <button onClick={handleBookmarkClick}>
-            {isBookmarked ? <BookmarkedIcon color="orange" /> : <BookmarkIcon />}
-            {isBookmarked ? 'Bookmarked' : 'Bookmark'}
-          </button>
-          <button onClick={toggleShareOptions}>
-            <FaShare /> Share
-          </button>
-          {showShareOptions && (
-            <div className="share-options">
-              <button onClick={() => shareOnSocialMedia('facebook')}><SiFacebook /></button>
-              <button onClick={() => shareOnSocialMedia('twitter')}><SiTwitter /></button>
-              <button onClick={() => shareOnSocialMedia('whatsapp')}><SiWhatsapp /></button>
-              <button onClick={copyLinkToClipboard}><FaClipboard /></button>
+
+        {/* Related posts */}
+        {relatedPosts.length > 0 && (
+          <div className="related-posts">
+            <h2>Also Read</h2>
+            <div className="related-posts-container">
+              {relatedPosts.map((relatedPost, index) => (
+                <div className="related-post-card" key={index}>
+                  <Link href={`/${post.category_name}/${relatedPost.slug}`}>
+                    <div className="image-container">
+                      <img src={relatedPost.image} alt={relatedPost.title} />
+                      <div className="related_read-time-overlay">{relatedPost.read_time} min read</div>
+                    </div>
+                    <div className="post-details">
+                      <h3 className="post-title">{truncateTitle(relatedPost.title)}</h3>
+                      <p className="post-excerpt">{relatedPost.excerpt}</p>
+                    </div>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="post-category">
+          <strong>Category:</strong> {post.category_name}
+        </div>
+        <div className='tags-div'>
+          {post.tag_slugs && (
+            <div className="post-tags">
+              <strong>Tags:</strong>
+              {post.tag_slugs.split(',').map((tagSlug, index) => (
+                <Link href={`/tags/${tagSlug}`} key={index} className="tag-link">
+                  <span className="tag">
+                    {post.tag_names.split(',')[index].trim()}{index < post.tag_slugs.split(',').length - 1 ? ', ' : ''}
+                  </span>
+                </Link>
+              ))}
             </div>
           )}
         </div>
-        <button onClick={() => setShowComments(!showComments)}>View Comments</button>
-        {showComments && <CommentsModal postId={post.id} />}
-        <div className="related-posts">
-          <h2>Related Posts</h2>
-          {relatedPosts.map(rp => (
-            <div key={rp.id} className="related-post">
-              <Link href={`/post/${rp.slug}`}>{rp.title}</Link>
-            </div>
-          ))}
+      </div>
+
+      <div className="actions">
+        <div className="action-item" onClick={toggleLike}>
+          <FaHeart style={{ color: isLikedByUser ? 'red' : 'inherit' }} />
         </div>
-        <div className="top-viewed-posts">
-          <h2>Top Viewed Posts</h2>
-          {topViewedPosts.map(tp => (
-            <div key={tp.id} className="top-viewed-post">
-              <Link href={`/post/${tp.slug}`}>{tp.title}</Link>
-            </div>
-          ))}
+        <span id="like-count">{likeCount}</span>
+        <div className="action-item" onClick={toggleCommentsModal}>
+          <AiOutlineComment />
+        </div>
+        <span id="comment-count">{commentCount}</span>
+        <div className="action-item" onClick={handleBookmarkClick}>
+  {isBookmarked ? (
+    <BookmarkedIcon style={{ color: 'gold' }} />
+  ) : (
+    <BookmarkIcon />
+  )}
+</div>
+
+        <div className="action-item" onClick={toggleShareOptions}>
+          <FaShare />
         </div>
       </div>
+
+      {showShareOptions && (
+        <div className="modal-backdrop" onClick={() => setShowShareOptions(false)}>
+          <div className="share-options-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Share this post</h2>
+            <div className="share-option" onClick={() => shareOnSocialMedia('facebook')}>
+              <SiFacebook className="share-option-icon" /> Share on Facebook
+            </div>
+            <div className="share-option" onClick={() => shareOnSocialMedia('twitter')}>
+              <SiTwitter className="share-option-icon" /> Share on Twitter
+            </div>
+            <div className="share-option" onClick={() => shareOnSocialMedia('whatsapp')}>
+              <SiWhatsapp className="share-option-icon" /> Share on WhatsApp
+            </div>
+            <div className="share-option" onClick={copyLinkToClipboard}>
+              <FaClipboard className="share-option-icon" /> Copy Link
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CommentsModal isOpen={showComments} onClose={toggleCommentsModal} postId={post.id} />
+
+      {topViewedPosts.length > 0 && (
+        <div className="you-might-like outside-container">
+          <h2>You Might Like</h2>
+          <div className="top-viewed-posts-container">
+            {topViewedPosts.map((topViewedPost, index) => (
+              <div className="top-viewed-post-card" key={index}>
+                <Link href={`/${topViewedPost.category_slug}/${topViewedPost.slug}`} className="card-link">
+                  <div className="image-container">
+                    <img src={topViewedPost.image} alt={topViewedPost.title} className="top-viewed-post-image" />
+                    <div className="read-time-overlay">{topViewedPost.read_time} min read</div>
+                  </div>
+                  <div className="text-container">
+                    <h3 className="top-viewed-post-title">{truncateTitle(topViewedPost.title)}</h3>
+                    <p className="top-viewed-post-category">{topViewedPost.category_name}</p>
+                  </div>
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 };
-
-export default PostPage;
 
 export async function getServerSideProps({ params }) {
   const { post_slug } = params;
 
   try {
+    // Fetch the post based on the slug from params
     const post = await fetchPostBySlug(post_slug);
+
+    // Return the post data as props
     return {
       props: { 
-        post: post || null
+        post: post || null // Ensure post is set to null if not found
       }
     };
   } catch (error) {
     console.error('Error fetching post:', error);
+
     return {
       props: { 
-        post: null
+        post: null // Return null if there's an error
       }
     };
   }
 }
+
+export default PostPage;
