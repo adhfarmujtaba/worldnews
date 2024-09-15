@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { fetchPostBySlug } from '../../app/services/api';
 import Link from 'next/link';
 import axios from 'axios';
-import { FaEye, FaCalendarAlt, FaClock, FaShare, FaHeart, FaClipboard } from 'react-icons/fa';
+import { FaEye, FaCalendarAlt, FaClock, FaShare, FaHeart,  FaClipboard } from 'react-icons/fa';
 import { AiOutlineComment } from 'react-icons/ai';
 import { SiFacebook, SiTwitter, SiWhatsapp } from 'react-icons/si';
 import { FaBookmark as BookmarkIcon, FaBookmark as BookmarkedIcon } from 'react-icons/fa';
@@ -13,8 +13,8 @@ import CommentsModal from './CommentsModal';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const PostPage = ({ post: initialPost }) => {
-  const [post, setPost] = useState(initialPost);
+
+const PostPage = ({ post }) => {
   const [likeCount, setLikeCount] = useState(0);
   const [isLikedByUser, setIsLikedByUser] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
@@ -23,34 +23,30 @@ const PostPage = ({ post: initialPost }) => {
   const [showComments, setShowComments] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [topViewedPosts, setTopViewedPosts] = useState([]);
-  const [isSSR, setIsSSR] = useState(true); // SSR flag to control skeleton loading visibility
+  
 
   const router = useRouter();
   const { post_slug } = router.query;
 
   useEffect(() => {
-    if (!initialPost && post_slug) {
-      const fetchPost = async () => {
-        try {
-          const postData = await fetchPostBySlug(post_slug);
-          setPost(postData);
-        } catch (error) {
-          console.error('Error fetching post:', error);
-        }
-      };
+    const fetchPost = async () => {
+      try {
+        const postData = await fetchPostBySlug(post_slug);
+        setPost(postData);
+      } catch (error) {
+        console.error("Error fetching post:", error);
+      }
+    };
 
+    if (post_slug) {
       fetchPost();
     }
-
-    setIsSSR(false); // Mark that SSR is complete
-  }, [initialPost, post_slug]);
+  }, [post_slug]);
 
   useEffect(() => {
     const fetchLikes = async () => {
       try {
-        const response = await axios.get(
-          `https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`
-        );
+        const response = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`);
         setLikeCount(response.data.like_count);
 
         const loggedInUser = localStorage.getItem('user');
@@ -58,13 +54,11 @@ const PostPage = ({ post: initialPost }) => {
           const foundUser = JSON.parse(loggedInUser);
           const userId = foundUser.id;
 
-          const likeStatusResponse = await axios.get(
-            `https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`
-          );
+          const likeStatusResponse = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`);
           setIsLikedByUser(likeStatusResponse.data.user_liked);
         }
       } catch (error) {
-        console.error('Error fetching like data:', error);
+        console.error("Error fetching like data:", error);
       }
     };
 
@@ -77,27 +71,24 @@ const PostPage = ({ post: initialPost }) => {
     try {
       const loggedInUser = localStorage.getItem('user');
       if (!loggedInUser) {
-        toast.error('Please log in to like the post');
+        toast.error("Please log in to like the post");
         return;
       }
 
       const foundUser = JSON.parse(loggedInUser);
       const userId = foundUser.id;
 
-      await axios.post(`https://blog.tourismofkashmir.com/api_likes?toggle-like`, {
-        post_id: post.id,
-        user_id: userId,
-      });
+      await axios.post(`https://blog.tourismofkashmir.com/api_likes?toggle-like`, { post_id: post.id, user_id: userId });
 
       setIsLikedByUser(!isLikedByUser);
-      setLikeCount((prevCount) => (isLikedByUser ? prevCount - 1 : prevCount + 1));
+      setLikeCount(prevCount => isLikedByUser ? prevCount - 1 : prevCount + 1);
       document.getElementById('like-btn').classList.add('heartBeatAnimation');
 
       setTimeout(() => {
         document.getElementById('like-btn').classList.remove('heartBeatAnimation');
       }, 500);
     } catch (error) {
-      console.error('Error toggling like:', error);
+      console.error("Error toggling like:", error);
     }
   };
 
@@ -107,7 +98,7 @@ const PostPage = ({ post: initialPost }) => {
         try {
           const loggedInUser = localStorage.getItem('user');
           if (!loggedInUser) {
-            console.warn('User not logged in');
+            console.warn("User not logged in");
             setIsBookmarked(false);
             return;
           }
@@ -115,12 +106,14 @@ const PostPage = ({ post: initialPost }) => {
           const foundUser = JSON.parse(loggedInUser);
           const userId = foundUser.id;
 
-          const response = await axios.get(
-            `https://blog.tourismofkashmir.com/api_bookmark.php?action=check&user_id=${userId}&post_id=${post.id}`
-          );
-          setIsBookmarked(response.data.includes('Post is bookmarked'));
+          const response = await axios.get(`https://blog.tourismofkashmir.com/api_bookmark.php?action=check&user_id=${userId}&post_id=${post.id}`);
+          if (response.data && typeof response.data === 'string') {
+            setIsBookmarked(response.data.includes("Post is bookmarked"));
+          } else {
+            setIsBookmarked(false);
+          }
         } catch (error) {
-          console.error('Error checking bookmark status:', error);
+          console.error("Error checking bookmark status:", error);
           setIsBookmarked(false);
         }
       }
@@ -132,20 +125,23 @@ const PostPage = ({ post: initialPost }) => {
   const handleBookmarkClick = async () => {
     const loggedInUser = localStorage.getItem('user');
     if (!loggedInUser) {
-      toast.error('Please log in to manage bookmarks');
+      toast.error("Please log in to manage bookmarks");
       return;
     }
 
     const foundUser = JSON.parse(loggedInUser);
     const userId = foundUser.id;
+
     const action = isBookmarked ? 'delete' : 'add';
 
     try {
-      await axios.get(
-        `https://blog.tourismofkashmir.com/api_bookmark.php?action=${action}&user_id=${userId}&post_id=${post.id}`
-      );
+      await axios.get(`https://blog.tourismofkashmir.com/api_bookmark.php?action=${action}&user_id=${userId}&post_id=${post.id}`);
       setIsBookmarked(!isBookmarked);
-      toast.success(`Bookmark ${action === 'add' ? 'added' : 'removed'} successfully`);
+      if (action === 'add') {
+        toast.success("Bookmark added successfully");
+      } else {
+        toast.success("Bookmark removed successfully");
+      }
     } catch (error) {
       console.error(`Error ${action}ing bookmark:`, error);
       toast.error(`Error ${action}ing bookmark: ${error.message}`);
@@ -156,13 +152,11 @@ const PostPage = ({ post: initialPost }) => {
     const fetchRelatedPosts = async () => {
       try {
         if (post && post.category_name) {
-          const response = await axios.get(
-            `https://blog.tourismofkashmir.com/related_api.php?related_posts=${post.category_name}&exclude_post_id=${post.id}`
-          );
+          const response = await axios.get(`https://blog.tourismofkashmir.com/related_api.php?related_posts=${post.category_name}&exclude_post_id=${post.id}`);
           setRelatedPosts(response.data);
         }
       } catch (error) {
-        console.error('Error fetching related posts:', error);
+        console.error("Error fetching related posts:", error);
       }
     };
 
@@ -172,11 +166,9 @@ const PostPage = ({ post: initialPost }) => {
   useEffect(() => {
     const updateViews = async () => {
       try {
-        await axios.get(
-          `https://blog.tourismofkashmir.com/apis.php?update_views=true&post_id=${post.id}`
-        );
+        await axios.get(`https://blog.tourismofkashmir.com/apis.php?update_views=true&post_id=${post.id}`);
       } catch (error) {
-        console.error('Error updating post views:', error);
+        console.error("Error updating post views:", error);
       }
     };
 
@@ -189,13 +181,11 @@ const PostPage = ({ post: initialPost }) => {
     const fetchCommentCount = async () => {
       try {
         if (post) {
-          const response = await axios.get(
-            `https://blog.tourismofkashmir.com/api_comment_count.php?post_id=${post.id}`
-          );
+          const response = await axios.get(`https://blog.tourismofkashmir.com/api_comment_count.php?post_id=${post.id}`);
           setCommentCount(response.data.comment_count);
         }
       } catch (error) {
-        console.error('Error fetching comment count:', error);
+        console.error("Error fetching comment count:", error);
       }
     };
 
@@ -206,13 +196,11 @@ const PostPage = ({ post: initialPost }) => {
     const fetchTopViewedPosts = async () => {
       try {
         if (post) {
-          const response = await axios.get(
-            `https://blog.tourismofkashmir.com/related_api.php?topviewpost=true&exclude_post_id=${post.id}`
-          );
+          const response = await axios.get(`https://blog.tourismofkashmir.com/related_api.php?topviewpost=true&exclude_post_id=${post.id}`);
           setTopViewedPosts(response.data);
         }
       } catch (error) {
-        console.error('Error fetching top viewed posts:', error);
+        console.error("Error fetching top viewed posts:", error);
       }
     };
 
@@ -248,11 +236,11 @@ const PostPage = ({ post: initialPost }) => {
 
   const copyLinkToClipboard = () => {
     navigator.clipboard.writeText(window.location.href)
-      .then(() => toast.success('Link copied to clipboard!'))
-      .catch((err) => console.error('Could not copy link: ', err));
+      .then(() => toast.success("Link copied to clipboard!"))
+      .catch((err) => console.error("Could not copy link: ", err));
   };
 
-  if (isSSR || !post) {
+  if (!post) {
     return (
       <div className="news-detail-skeleton-wrapper">
         <div className="news-detail-skeleton-image"></div>
