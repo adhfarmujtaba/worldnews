@@ -3,16 +3,16 @@ import { useRouter } from 'next/router';
 import { fetchPostBySlug } from '../../app/services/api';
 import Link from 'next/link';
 import axios from 'axios';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faCalendarAlt, faClock, faShare, faHeart, faBookmark } from '@fortawesome/free-solid-svg-icons';
-import { faHeart as farHeart, faBookmark as farBookmark, faCommentDots as farCommentDots } from '@fortawesome/free-regular-svg-icons';
-import { faFacebookF, faTwitter, faWhatsapp } from '@fortawesome/free-brands-svg-icons';
-import { faClipboard } from '@fortawesome/free-solid-svg-icons';
+import { FaEye, FaCalendarAlt, FaClock, FaShare, FaHeart, FaBookmark, FaClipboard } from 'react-icons/fa';
+import { AiOutlineComment } from 'react-icons/ai';
+import { SiFacebook, SiTwitter, SiWhatsapp } from 'react-icons/si';
+import { FaBookmark as BookmarkIcon, FaBookmark as BookmarkedIcon } from 'react-icons/fa';
 import Head from 'next/head';
 import '../../app/styles/posts.css';
 import CommentsModal from './CommentsModal';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
 
 const PostPage = ({ post }) => {
   const [likeCount, setLikeCount] = useState(0);
@@ -298,8 +298,7 @@ const PostPage = ({ post }) => {
   return (
     <>
       <Head>
-      <title>{post.title}</title>
-      <title>{post ? post.title : 'Post Not Found'}</title>
+        <title>{post.title}</title>
         <meta name="description" content={post ? post.meta_description : 'Post not found'} />
         <meta property="og:title" content={post ? post.title : 'Post Not Found'} />
         <meta property="og:description" content={post ? post.meta_description : 'Post not found'} />
@@ -313,8 +312,6 @@ const PostPage = ({ post }) => {
         <meta name="twitter:image" content={imageUrl} />
         <meta name="twitter:url" content={postUrl} />
         <link rel="icon" href={imageUrl} type="image/x-icon" />
-
-       
       </Head>
 
       <div className="container_post">
@@ -323,9 +320,9 @@ const PostPage = ({ post }) => {
           <div className="card-body">
             <h5 className="card-title">{post.title}</h5>
             <p className="card-text post-meta">
-              <FontAwesomeIcon icon={faEye} /> {formatViews(post.views)} views •
-              <FontAwesomeIcon icon={faCalendarAlt} /> {formattedDate} •
-              <FontAwesomeIcon icon={faClock} /> {post.read_time} min read
+              <FaEye /> {formatViews(post.views)} views •
+              <FaCalendarAlt /> {formattedDate} •
+              <FaClock /> {post.read_time} min read
             </p>
             <div className="content_post" dangerouslySetInnerHTML={{ __html: post.content }} />
           </div>
@@ -375,18 +372,23 @@ const PostPage = ({ post }) => {
 
       <div className="actions">
         <div className="action-item" onClick={toggleLike}>
-          <FontAwesomeIcon icon={isLikedByUser ? faHeart : farHeart} style={{ color: isLikedByUser ? 'red' : 'inherit' }} />
+          <FaHeart style={{ color: isLikedByUser ? 'red' : 'inherit' }} />
         </div>
         <span id="like-count">{likeCount}</span>
         <div className="action-item" onClick={toggleCommentsModal}>
-          <FontAwesomeIcon icon={farCommentDots} />
+          <AiOutlineComment />
         </div>
         <span id="comment-count">{commentCount}</span>
         <div className="action-item" onClick={handleBookmarkClick}>
-          <FontAwesomeIcon icon={isBookmarked ? faBookmark : farBookmark} />
-        </div>
+  {isBookmarked ? (
+    <BookmarkedIcon style={{ color: 'gold' }} />
+  ) : (
+    <BookmarkIcon />
+  )}
+</div>
+
         <div className="action-item" onClick={toggleShareOptions}>
-          <FontAwesomeIcon icon={faShare} />
+          <FaShare />
         </div>
       </div>
 
@@ -395,16 +397,16 @@ const PostPage = ({ post }) => {
           <div className="share-options-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Share this post</h2>
             <div className="share-option" onClick={() => shareOnSocialMedia('facebook')}>
-              <FontAwesomeIcon icon={faFacebookF} className="share-option-icon" /> Share on Facebook
+              <SiFacebook className="share-option-icon" /> Share on Facebook
             </div>
             <div className="share-option" onClick={() => shareOnSocialMedia('twitter')}>
-              <FontAwesomeIcon icon={faTwitter} className="share-option-icon" /> Share on Twitter
+              <SiTwitter className="share-option-icon" /> Share on Twitter
             </div>
             <div className="share-option" onClick={() => shareOnSocialMedia('whatsapp')}>
-              <FontAwesomeIcon icon={faWhatsapp} className="share-option-icon" /> Share on WhatsApp
+              <SiWhatsapp className="share-option-icon" /> Share on WhatsApp
             </div>
             <div className="share-option" onClick={copyLinkToClipboard}>
-              <FontAwesomeIcon icon={faClipboard} className="share-option-icon" /> Copy Link
+              <FaClipboard className="share-option-icon" /> Copy Link
             </div>
           </div>
         </div>
@@ -436,6 +438,7 @@ const PostPage = ({ post }) => {
     </>
   );
 };
+
 export async function getServerSideProps({ params }) {
   const { post_slug } = params;
 
