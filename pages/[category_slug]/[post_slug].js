@@ -3,19 +3,18 @@ import { useRouter } from 'next/router';
 import { fetchPostBySlug } from '../../app/services/api';
 import Link from 'next/link';
 import axios from 'axios';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faCalendarAlt, faClock, faShare, faHeart, faBookmark } from '@fortawesome/free-solid-svg-icons';
-import { faHeart as farHeart, faBookmark as farBookmark, faCommentDots as farCommentDots } from '@fortawesome/free-regular-svg-icons';
-import { faFacebookF, faTwitter, faWhatsapp } from '@fortawesome/free-brands-svg-icons';
-import { faClipboard } from '@fortawesome/free-solid-svg-icons';
+import { FaEye, FaCalendarAlt, FaClock, FaShare, FaHeart, FaClipboard } from 'react-icons/fa';
+import { AiOutlineComment } from 'react-icons/ai';
+import { SiFacebook, SiTwitter, SiWhatsapp } from 'react-icons/si';
+import { FaBookmark as BookmarkIcon, FaBookmark as BookmarkedIcon } from 'react-icons/fa';
 import Head from 'next/head';
 import '../../app/styles/posts.css';
 import CommentsModal from './CommentsModal';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const PostPage = () => {
-  const [post, setPost] = useState(null);
+const PostPage = ({ post }) => {
+  const [loading, setLoading] = useState(!post); // Show skeleton loader if post data is not passed from SSR
   const [likeCount, setLikeCount] = useState(0);
   const [isLikedByUser, setIsLikedByUser] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
@@ -31,10 +30,16 @@ const PostPage = () => {
   useEffect(() => {
     const fetchPost = async () => {
       try {
+        if (!post_slug) return;
+
         const postData = await fetchPostBySlug(post_slug);
-        setPost(postData);
+        if (postData) {
+          setPost(postData);
+          setLoading(false); // Set loading to false when post data is fetched
+        }
       } catch (error) {
         console.error("Error fetching post:", error);
+        setLoading(false); // Ensure loading is set to false even on error
       }
     };
 
@@ -46,25 +51,25 @@ const PostPage = () => {
   useEffect(() => {
     const fetchLikes = async () => {
       try {
-        if (post) {
-          const response = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`);
-          setLikeCount(response.data.like_count);
+        const response = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`);
+        setLikeCount(response.data.like_count);
 
-          const loggedInUser = localStorage.getItem('user');
-          if (loggedInUser) {
-            const foundUser = JSON.parse(loggedInUser);
-            const userId = foundUser.id;
+        const loggedInUser = localStorage.getItem('user');
+        if (loggedInUser) {
+          const foundUser = JSON.parse(loggedInUser);
+          const userId = foundUser.id;
 
-            const likeStatusResponse = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`);
-            setIsLikedByUser(likeStatusResponse.data.user_liked);
-          }
+          const likeStatusResponse = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`);
+          setIsLikedByUser(likeStatusResponse.data.user_liked);
         }
       } catch (error) {
         console.error("Error fetching like data:", error);
       }
     };
 
-    fetchLikes();
+    if (post) {
+      fetchLikes();
+    }
   }, [post]);
 
   const toggleLike = async () => {
@@ -166,15 +171,15 @@ const PostPage = () => {
   useEffect(() => {
     const updateViews = async () => {
       try {
-        if (post) {
-          await axios.get(`https://blog.tourismofkashmir.com/apis.php?update_views=true&post_id=${post.id}`);
-        }
+        await axios.get(`https://blog.tourismofkashmir.com/apis.php?update_views=true&post_id=${post.id}`);
       } catch (error) {
         console.error("Error updating post views:", error);
       }
     };
 
-    updateViews();
+    if (post) {
+      updateViews();
+    }
   }, [post]);
 
   useEffect(() => {
@@ -240,171 +245,99 @@ const PostPage = () => {
       .catch((err) => console.error("Could not copy link: ", err));
   };
 
-  const formattedDate = post ? new Date(post.created_at).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  }) : '';
+  if (loading) {
+    return (
+      <div className="news-detail-skeleton-wrapper">
+        <div className="news-detail-skeleton-image"></div>
+        <div className="news-detail-skeleton-title"></div>
+        <div className="news-detail-skeleton-meta"></div>
+        <div className="news-detail-skeleton-content"></div>
+      </div>
+    );
+  }
 
-  const formatViews = (views) => {
-    if (views >= 10000000) {
-      return Math.floor(views / 10000000) + 'cr';
-    } else if (views >= 1000000) {
-      return Math.floor(views / 1000000) + 'M';
-    } else if (views >= 100000) {
-      return Math.floor(views / 1000) + 'K';
-    } else {
-      return views;
-    }
-  };
-
-  const truncateTitle = (title) => {
-    return title.length > 50 ? title.substring(0, 50) + '...' : title;
-  };
+  if (!post) {
+    return <p>Post not found.</p>;
+  }
 
   return (
     <>
       <Head>
-        <title>{post ? post.title : 'Post Not Found'}</title>
-        <meta name="description" content={post ? post.meta_description : 'Post not found'} />
-        {/* Add other meta tags here */}
+        <title>{post.title}</title>
+        <meta name="description" content={post.excerpt} />
+        {/* Add other meta tags as needed */}
       </Head>
-
-      <div className="container_post">
-        {post ? (
-          <>
-            <div className="card_post">
-              <img src={post.image} className="card-img-top news-image" alt={post.title} />
-              <div className="card-body">
-                <h5 className="card-title">{post.title}</h5>
-                <p className="card-text post-meta">
-                  <FontAwesomeIcon icon={faEye} /> {formatViews(post.views)} views •
-                  <FontAwesomeIcon icon={faCalendarAlt} /> {formattedDate} •
-                  <FontAwesomeIcon icon={faClock} /> {post.read_time} min read
-                </p>
-                <div className="content_post" dangerouslySetInnerHTML={{ __html: post.content }} />
-              </div>
+      <div className="post-page">
+        <h1>{post.title}</h1>
+        <div className="post-meta">
+          <span><FaCalendarAlt /> {new Date(post.date).toLocaleDateString()}</span>
+          <span><FaClock /> {post.reading_time} min read</span>
+          <span><FaEye /> {post.views} views</span>
+          <span><AiOutlineComment /> {commentCount} comments</span>
+        </div>
+        <div className="post-content" dangerouslySetInnerHTML={{ __html: post.content }} />
+        <div className="post-actions">
+          <button id="like-btn" onClick={toggleLike}>
+            {isLikedByUser ? <FaHeart color="red" /> : <FaHeart />}
+            {likeCount}
+          </button>
+          <button onClick={handleBookmarkClick}>
+            {isBookmarked ? <BookmarkedIcon color="orange" /> : <BookmarkIcon />}
+            {isBookmarked ? 'Bookmarked' : 'Bookmark'}
+          </button>
+          <button onClick={toggleShareOptions}>
+            <FaShare /> Share
+          </button>
+          {showShareOptions && (
+            <div className="share-options">
+              <button onClick={() => shareOnSocialMedia('facebook')}><SiFacebook /></button>
+              <button onClick={() => shareOnSocialMedia('twitter')}><SiTwitter /></button>
+              <button onClick={() => shareOnSocialMedia('whatsapp')}><SiWhatsapp /></button>
+              <button onClick={copyLinkToClipboard}><FaClipboard /></button>
             </div>
-
-            {/* Related posts */}
-            {relatedPosts.length > 0 && (
-              <div className="related-posts">
-                <h2>Also Read</h2>
-                <div className="related-posts-container">
-                  {relatedPosts.map((relatedPost, index) => (
-                    <div className="related-post-card" key={index}>
-                      <Link href={`/${post.category_name}/${relatedPost.slug}`}>
-                        <div className="image-container">
-                          <img src={relatedPost.image} alt={relatedPost.title} />
-                          <div className="related_read-time-overlay">{relatedPost.read_time} min read</div>
-                        </div>
-                        <div className="post-details">
-                          <h3 className="post-title">{truncateTitle(relatedPost.title)}</h3>
-                          <p className="post-excerpt">{relatedPost.excerpt}</p>
-                        </div>
-                      </Link>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="post-category">
-              <strong>Category:</strong> {post.category_name}
+          )}
+        </div>
+        <button onClick={() => setShowComments(!showComments)}>View Comments</button>
+        {showComments && <CommentsModal postId={post.id} />}
+        <div className="related-posts">
+          <h2>Related Posts</h2>
+          {relatedPosts.map(rp => (
+            <div key={rp.id} className="related-post">
+              <Link href={`/post/${rp.slug}`}>{rp.title}</Link>
             </div>
-            <div className='tags-div'>
-              {post.tag_slugs && (
-                <div className="post-tags">
-                  <strong>Tags:</strong>
-                  {post.tag_slugs.split(',').map((tagSlug, index) => (
-                    <Link href={`/tags/${tagSlug}`} key={index} className="tag-link">
-                      <span className="tag">
-                        {post.tag_names.split(',')[index].trim()}{index < post.tag_slugs.split(',').length - 1 ? ', ' : ''}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              )}
+          ))}
+        </div>
+        <div className="top-viewed-posts">
+          <h2>Top Viewed Posts</h2>
+          {topViewedPosts.map(tp => (
+            <div key={tp.id} className="top-viewed-post">
+              <Link href={`/post/${tp.slug}`}>{tp.title}</Link>
             </div>
-          </>
-        ) : (
-          <div className="post-not-found">
-            <h1>Post Not Found</h1>
-            <p>Sorry, we couldn't find the post you're looking for.</p>
-          </div>
-        )}
-
-        {/* Actions and Share Options */}
-        {post && (
-          <div className="actions">
-            <div className="action-item" id="like-btn" onClick={toggleLike}>
-              <FontAwesomeIcon icon={isLikedByUser ? faHeart : farHeart} style={{ color: isLikedByUser ? 'red' : 'inherit' }} />
-            </div>
-            <span id="like-count">{likeCount}</span>
-            <div className="action-item" onClick={() => setShowComments(true)}>
-              <FontAwesomeIcon icon={farCommentDots} />
-            </div>
-            <span id="comment-count">{commentCount}</span>
-            <div className="action-item" onClick={handleBookmarkClick}>
-              <FontAwesomeIcon icon={isBookmarked ? faBookmark : farBookmark} />
-            </div>
-            <div className="action-item" onClick={toggleShareOptions}>
-              <FontAwesomeIcon icon={faShare} />
-            </div>
-          </div>
-        )}
-
-        {/* Share Options Modal */}
-        {showShareOptions && (
-          <div className="modal-backdrop" onClick={() => setShowShareOptions(false)}>
-            <div className="share-options-modal" onClick={(e) => e.stopPropagation()}>
-              <h2>Share this post</h2>
-              <div className="share-option" onClick={() => shareOnSocialMedia('facebook')}>
-                <FontAwesomeIcon icon={faFacebookF} className="share-option-icon" /> Share on Facebook
-              </div>
-              <div className="share-option" onClick={() => shareOnSocialMedia('twitter')}>
-                <FontAwesomeIcon icon={faTwitter} className="share-option-icon" /> Share on Twitter
-              </div>
-              <div className="share-option" onClick={() => shareOnSocialMedia('whatsapp')}>
-                <FontAwesomeIcon icon={faWhatsapp} className="share-option-icon" /> Share on WhatsApp
-              </div>
-              <div className="share-option" onClick={copyLinkToClipboard}>
-                <FontAwesomeIcon icon={faClipboard} className="share-option-icon" /> Copy Link
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Comments Modal */}
-        {post && (
-          <CommentsModal isOpen={showComments} onClose={() => setShowComments(false)} postId={post.id} />
-        )}
-
-        {/* Top Viewed Posts */}
-        {topViewedPosts.length > 0 && (
-          <div className="you-might-like outside-container">
-            <h2>You Might Like</h2>
-            <div className="top-viewed-posts-container">
-              {topViewedPosts.map((topViewedPost, index) => (
-                <div className="top-viewed-post-card" key={index}>
-                  <Link href={`/${topViewedPost.category_slug}/${topViewedPost.slug}`} className="card-link">
-                    <div className="image-container">
-                      <img src={topViewedPost.image} alt={topViewedPost.title} className="top-viewed-post-image" />
-                      <div className="read-time-overlay">{topViewedPost.read_time} min read</div>
-                    </div>
-                    <div className="text-container">
-                      <h3 className="top-viewed-post-title">{truncateTitle(topViewedPost.title)}</h3>
-                      <p className="top-viewed-post-category">{topViewedPost.category_name}</p>
-                    </div>
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
     </>
   );
 };
 
 export default PostPage;
+
+export async function getServerSideProps({ params }) {
+  const { post_slug } = params;
+
+  try {
+    const post = await fetchPostBySlug(post_slug);
+    return {
+      props: { 
+        post: post || null
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching post:', error);
+    return {
+      props: { 
+        post: null
+      }
+    };
+  }
+}
