@@ -3,16 +3,14 @@ import { useRouter } from 'next/router';
 import { fetchPostBySlug } from '../../app/services/api';
 import Link from 'next/link';
 import axios from 'axios';
-import { FaEye, FaCalendarAlt, FaClock, FaShare, FaHeart, FaBookmark, FaClipboard } from 'react-icons/fa';
+import { FaEye, FaCalendarAlt, FaClock, FaShare, FaHeart, FaBookmark as BookmarkIcon, FaClipboard } from 'react-icons/fa';
 import { AiOutlineComment } from 'react-icons/ai';
 import { SiFacebook, SiTwitter, SiWhatsapp } from 'react-icons/si';
-import { FaBookmark as BookmarkIcon, FaBookmark as BookmarkedIcon } from 'react-icons/fa';
 import Head from 'next/head';
 import '../../app/styles/posts.css';
 import CommentsModal from './CommentsModal';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
 
 const PostPage = ({ post }) => {
   const [likeCount, setLikeCount] = useState(0);
@@ -24,7 +22,7 @@ const PostPage = ({ post }) => {
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [topViewedPosts, setTopViewedPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const [clientLoaded, setClientLoaded] = useState(false); // Track if client-side code has loaded
 
   const router = useRouter();
   const { post_slug } = router.query;
@@ -34,43 +32,136 @@ const PostPage = ({ post }) => {
       try {
         const postData = await fetchPostBySlug(post_slug);
         setPost(postData);
+        setLoading(false);
       } catch (error) {
         console.error("Error fetching post:", error);
+        setLoading(false);
       }
     };
 
     if (post_slug) {
       fetchPost();
-      setLoading(false);
     }
   }, [post_slug]);
 
   useEffect(() => {
-    const fetchLikes = async () => {
-      try {
-        const response = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`);
-        setLikeCount(response.data.like_count);
+    if (clientLoaded && post) {
+      const fetchLikes = async () => {
+        try {
+          const response = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`);
+          setLikeCount(response.data.like_count);
 
-        const loggedInUser = localStorage.getItem('user');
-        if (loggedInUser) {
+          const loggedInUser = localStorage.getItem('user');
+          if (loggedInUser) {
+            const foundUser = JSON.parse(loggedInUser);
+            const userId = foundUser.id;
+
+            const likeStatusResponse = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`);
+            setIsLikedByUser(likeStatusResponse.data.user_liked);
+          }
+        } catch (error) {
+          console.error("Error fetching like data:", error);
+        }
+      };
+
+      fetchLikes();
+    }
+  }, [post, clientLoaded]);
+
+  useEffect(() => {
+    if (clientLoaded && post) {
+      const checkBookmarkStatus = async () => {
+        try {
+          const loggedInUser = localStorage.getItem('user');
+          if (!loggedInUser) {
+            setIsBookmarked(false);
+            return;
+          }
+
           const foundUser = JSON.parse(loggedInUser);
           const userId = foundUser.id;
 
-          const likeStatusResponse = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`);
-          setIsLikedByUser(likeStatusResponse.data.user_liked);
+          const response = await axios.get(`https://blog.tourismofkashmir.com/api_bookmark.php?action=check&user_id=${userId}&post_id=${post.id}`);
+          setIsBookmarked(response.data.includes("Post is bookmarked"));
+        } catch (error) {
+          console.error("Error checking bookmark status:", error);
+          setIsBookmarked(false);
         }
-      } catch (error) {
-        console.error("Error fetching like data:", error);
-      }
-    };
+      };
 
-    if (post) {
-      fetchLikes();
+      checkBookmarkStatus();
     }
-  }, [post, post_slug]);
+  }, [post, clientLoaded]);
+
+  useEffect(() => {
+    if (clientLoaded && post) {
+      const fetchRelatedPosts = async () => {
+        try {
+          if (post.category_name) {
+            const response = await axios.get(`https://blog.tourismofkashmir.com/related_api.php?related_posts=${post.category_name}&exclude_post_id=${post.id}`);
+            setRelatedPosts(response.data);
+          }
+        } catch (error) {
+          console.error("Error fetching related posts:", error);
+        }
+      };
+
+      fetchRelatedPosts();
+    }
+  }, [post, clientLoaded]);
+
+  useEffect(() => {
+    if (clientLoaded && post) {
+      const updateViews = async () => {
+        try {
+          await axios.get(`https://blog.tourismofkashmir.com/apis.php?update_views=true&post_id=${post.id}`);
+        } catch (error) {
+          console.error("Error updating post views:", error);
+        }
+      };
+
+      updateViews();
+    }
+  }, [post, clientLoaded]);
+
+  useEffect(() => {
+    if (clientLoaded && post) {
+      const fetchCommentCount = async () => {
+        try {
+          const response = await axios.get(`https://blog.tourismofkashmir.com/api_comment_count.php?post_id=${post.id}`);
+          setCommentCount(response.data.comment_count);
+        } catch (error) {
+          console.error("Error fetching comment count:", error);
+        }
+      };
+
+      fetchCommentCount();
+    }
+  }, [post, clientLoaded]);
+
+  useEffect(() => {
+    if (clientLoaded && post) {
+      const fetchTopViewedPosts = async () => {
+        try {
+          const response = await axios.get(`https://blog.tourismofkashmir.com/related_api.php?topviewpost=true&exclude_post_id=${post.id}`);
+          setTopViewedPosts(response.data);
+        } catch (error) {
+          console.error("Error fetching top viewed posts:", error);
+        }
+      };
+
+      fetchTopViewedPosts();
+    }
+  }, [post, clientLoaded]);
+
+  useEffect(() => {
+    setClientLoaded(true); // Set clientLoaded to true after initial render
+  }, []);
 
   const toggleLike = async () => {
     try {
+      if (!clientLoaded) return; // Ensure client-side code runs only if loaded
+
       const loggedInUser = localStorage.getItem('user');
       if (!loggedInUser) {
         toast.error("Please log in to like the post");
@@ -94,37 +185,9 @@ const PostPage = ({ post }) => {
     }
   };
 
-  useEffect(() => {
-    const checkBookmarkStatus = async () => {
-      if (post) {
-        try {
-          const loggedInUser = localStorage.getItem('user');
-          if (!loggedInUser) {
-            console.warn("User not logged in");
-            setIsBookmarked(false);
-            return;
-          }
-
-          const foundUser = JSON.parse(loggedInUser);
-          const userId = foundUser.id;
-
-          const response = await axios.get(`https://blog.tourismofkashmir.com/api_bookmark.php?action=check&user_id=${userId}&post_id=${post.id}`);
-          if (response.data && typeof response.data === 'string') {
-            setIsBookmarked(response.data.includes("Post is bookmarked"));
-          } else {
-            setIsBookmarked(false);
-          }
-        } catch (error) {
-          console.error("Error checking bookmark status:", error);
-          setIsBookmarked(false);
-        }
-      }
-    };
-
-    checkBookmarkStatus();
-  }, [post]);
-
   const handleBookmarkClick = async () => {
+    if (!clientLoaded) return;
+
     const loggedInUser = localStorage.getItem('user');
     if (!loggedInUser) {
       toast.error("Please log in to manage bookmarks");
@@ -133,81 +196,17 @@ const PostPage = ({ post }) => {
 
     const foundUser = JSON.parse(loggedInUser);
     const userId = foundUser.id;
-
     const action = isBookmarked ? 'delete' : 'add';
 
     try {
       await axios.get(`https://blog.tourismofkashmir.com/api_bookmark.php?action=${action}&user_id=${userId}&post_id=${post.id}`);
       setIsBookmarked(!isBookmarked);
-      if (action === 'add') {
-        toast.success("Bookmark added successfully");
-      } else {
-        toast.success("Bookmark removed successfully");
-      }
+      toast.success(action === 'add' ? "Bookmark added successfully" : "Bookmark removed successfully");
     } catch (error) {
       console.error(`Error ${action}ing bookmark:`, error);
       toast.error(`Error ${action}ing bookmark: ${error.message}`);
     }
   };
-
-  useEffect(() => {
-    const fetchRelatedPosts = async () => {
-      try {
-        if (post && post.category_name) {
-          const response = await axios.get(`https://blog.tourismofkashmir.com/related_api.php?related_posts=${post.category_name}&exclude_post_id=${post.id}`);
-          setRelatedPosts(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching related posts:", error);
-      }
-    };
-
-    fetchRelatedPosts();
-  }, [post]);
-
-  useEffect(() => {
-    const updateViews = async () => {
-      try {
-        await axios.get(`https://blog.tourismofkashmir.com/apis.php?update_views=true&post_id=${post.id}`);
-      } catch (error) {
-        console.error("Error updating post views:", error);
-      }
-    };
-
-    if (post) {
-      updateViews();
-    }
-  }, [post]);
-
-  useEffect(() => {
-    const fetchCommentCount = async () => {
-      try {
-        if (post) {
-          const response = await axios.get(`https://blog.tourismofkashmir.com/api_comment_count.php?post_id=${post.id}`);
-          setCommentCount(response.data.comment_count);
-        }
-      } catch (error) {
-        console.error("Error fetching comment count:", error);
-      }
-    };
-
-    fetchCommentCount();
-  }, [post]);
-
-  useEffect(() => {
-    const fetchTopViewedPosts = async () => {
-      try {
-        if (post) {
-          const response = await axios.get(`https://blog.tourismofkashmir.com/related_api.php?topviewpost=true&exclude_post_id=${post.id}`);
-          setTopViewedPosts(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching top viewed posts:", error);
-      }
-    };
-
-    fetchTopViewedPosts();
-  }, [post]);
 
   const toggleShareOptions = () => {
     setShowShareOptions(!showShareOptions);
@@ -253,6 +252,10 @@ const PostPage = ({ post }) => {
     );
   }
 
+  if (!post) {
+    return <div>Post not found</div>;
+  }
+
   const formattedDate = new Date(post.created_at).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -277,25 +280,23 @@ const PostPage = ({ post }) => {
     setShowComments(prevState => !prevState);
   };
 
-  // Helper function to truncate titles that are too long
   const truncateTitle = (title, maxLength = 50) => {
     if (title.length > maxLength) {
-      return `${title.substring(0, maxLength)}...`; // Truncate and append ellipsis
+      return `${title.substring(0, maxLength)}...`;
     }
-    return title; // Return the original title if it's short enough
+    return title;
   };
 
   const getCurrentDomain = () => {
     if (typeof window !== 'undefined') {
       return window.location.origin;
     }
-    return 'https://yourwebsite.com'; // Fallback for server-side rendering
+    return 'https://yourwebsite.com';
   };
 
   const currentDomain = getCurrentDomain();
   const postUrl = post ? `${currentDomain}/posts/${post.slug}` : '';
-
-  const defaultImage = `${currentDomain}/default-image.jpg`; // Replace with your default image URL
+  const defaultImage = `${currentDomain}/default-image.jpg`;
   const imageUrl = post && post.image ? post.image : defaultImage;
 
   return (
@@ -331,7 +332,6 @@ const PostPage = ({ post }) => {
           </div>
         </div>
 
-        {/* Related posts */}
         {relatedPosts.length > 0 && (
           <div className="related-posts">
             <h2>Also Read</h2>
@@ -374,7 +374,7 @@ const PostPage = ({ post }) => {
       </div>
 
       <div className="actions">
-        <div className="action-item" onClick={toggleLike}>
+        <div className="action-item" id="like-btn" onClick={toggleLike}>
           <FaHeart style={{ color: isLikedByUser ? 'red' : 'inherit' }} />
         </div>
         <span id="like-count">{likeCount}</span>
@@ -383,12 +383,12 @@ const PostPage = ({ post }) => {
         </div>
         <span id="comment-count">{commentCount}</span>
         <div className="action-item" onClick={handleBookmarkClick}>
-  {isBookmarked ? (
-    <BookmarkedIcon style={{ color: 'gold' }} />
-  ) : (
-    <BookmarkIcon />
-  )}
-</div>
+          {isBookmarked ? (
+            <BookmarkIcon style={{ color: 'gold' }} />
+          ) : (
+            <BookmarkIcon />
+          )}
+        </div>
 
         <div className="action-item" onClick={toggleShareOptions}>
           <FaShare />
@@ -446,23 +446,11 @@ export async function getServerSideProps({ params }) {
   const { post_slug } = params;
 
   try {
-    // Fetch the post based on the slug from params
     const post = await fetchPostBySlug(post_slug);
-
-    // Return the post data as props
-    return {
-      props: { 
-        post: post || null // Ensure post is set to null if not found
-      }
-    };
+    return { props: { post: post || null } };
   } catch (error) {
     console.error('Error fetching post:', error);
-
-    return {
-      props: { 
-        post: null // Return null if there's an error
-      }
-    };
+    return { props: { post: null } };
   }
 }
 
