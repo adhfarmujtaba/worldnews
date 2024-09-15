@@ -13,6 +13,7 @@ import CommentsModal from './CommentsModal';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+
 const PostPage = ({ post }) => {
   const [likeCount, setLikeCount] = useState(0);
   const [isLikedByUser, setIsLikedByUser] = useState(false);
@@ -22,7 +23,6 @@ const PostPage = ({ post }) => {
   const [showComments, setShowComments] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [topViewedPosts, setTopViewedPosts] = useState([]);
-  const [loading, setLoading] = useState(true); // New loading state
 
   const router = useRouter();
   const { post_slug } = router.query;
@@ -32,10 +32,8 @@ const PostPage = ({ post }) => {
       try {
         const postData = await fetchPostBySlug(post_slug);
         setPost(postData);
-        setLoading(false); // Set loading to false when data is fetched
       } catch (error) {
         console.error("Error fetching post:", error);
-        setLoading(false);
       }
     };
 
@@ -43,30 +41,6 @@ const PostPage = ({ post }) => {
       fetchPost();
     }
   }, [post_slug]);
-
-  useEffect(() => {
-    const fetchLikes = async () => {
-      try {
-        const response = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=getLikeCount&post_id=${post.id}`);
-        setLikeCount(response.data.like_count);
-
-        const loggedInUser = localStorage.getItem('user');
-        if (loggedInUser) {
-          const foundUser = JSON.parse(loggedInUser);
-          const userId = foundUser.id;
-
-          const likeStatusResponse = await axios.get(`https://blog.tourismofkashmir.com/api_likes?action=checkUserLike&post_id=${post.id}&user_id=${userId}`);
-          setIsLikedByUser(likeStatusResponse.data.user_liked);
-        }
-      } catch (error) {
-        console.error("Error fetching like data:", error);
-      }
-    };
-
-    if (post) {
-      fetchLikes();
-    }
-  }, [post, post_slug]);
 
   useEffect(() => {
     const fetchLikes = async () => {
@@ -265,7 +239,7 @@ const PostPage = ({ post }) => {
       .catch((err) => console.error("Could not copy link: ", err));
   };
 
-  if (loading) {
+  if (!post) {
     return (
       <div className="news-detail-skeleton-wrapper">
         <div className="news-detail-skeleton-image"></div>
